@@ -1,0 +1,5 @@
+# Excel caches
+~$*.xlsx
+
+# The unredacted inventory for live use
+tshirt_inventory.xlsx
