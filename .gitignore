@@ -1,8 +1,9 @@
 # Excel caches
 ~$*.xlsx
 
-# The unredacted inventory for live use
+# The unredacted inventory and shipping manifests for live use
 tshirt_inventory.xlsx
+*manifest.csv
 
 # Vim swap
 .*.sw*
