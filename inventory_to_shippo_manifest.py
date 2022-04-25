@@ -1,5 +1,9 @@
 #! /usr/bin/env python3
 
+'''Usage:
+
+./inventory_to_shippo_manifest.py tshirt_inventory.xlsx manifest.csv'''
+
 
 import copy
 import csv
