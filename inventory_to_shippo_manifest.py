@@ -40,7 +40,14 @@ BALANCE_OF_SHIPMENT = \
 # to 9 oz, which incurs a big price increase).
 MARGIN_OF_SAFETY = 0.15
 
-# Hard-code USA addresses
+DEFAULT_COUNTRY = 'US'
+COUNTRIES = {
+    'US': {'fields': ['City', 'State/Province', 'Zip/Postal Code'],
+           'postal_code_regex': re.compile(r'[0-9]{5}(-[0-9]{4})?')},
+    'GB': {'fields': ['City', 'Zip/Postal Code'],
+           'postal_code_regex': re.compile(
+               r'[A-Z][A-Z0-9]{1,3} [0-9][A-Z]{2}')}}
+
 SHIPPO_FIELDS = {'Order Number': None,
                  'Order Date': None,
                  'Recipient Name': None,
@@ -53,7 +60,7 @@ SHIPPO_FIELDS = {'Order Number': None,
                  'City': None,
                  'State/Province': None,
                  'Zip/Postal Code': None,
-                 'Country': 'USA',
+                 'Country': None,
                  'Item Title': None,
                  'SKU': None,
                  'Quantity': None,
@@ -66,57 +73,92 @@ SHIPPO_FIELDS = {'Order Number': None,
                  'Order Amount': None,
                  'Order Currency': None}
 
-STATE_AND_ZIP = re.compile(r'(.*) ([A-Z]{2}),? ([0-9]{5})$')
-
 def shippo_details(size_text, name_text, address_text):
     '''Parse spreadsheet row into Shippo fields.'''
     result = copy.deepcopy(SHIPPO_FIELDS)
 
     # Real addresses and not notes to hand-deliver have parts, thus commas
     if address_text.find(', ') > -1:
-        state_and_zip_match = STATE_AND_ZIP.search(address_text.strip())
-        if state_and_zip_match:
-            result['Recipient Name'] = name_text
-            result['State/Province'] = state_and_zip_match.group(2)
-            result['Zip/Postal Code'] = state_and_zip_match.group(3)
+        result['Recipient Name'] = name_text
+        result['Order Weight'] = math.ceil(
+            SHIRT_WEIGHTS[size_text] +
+            BALANCE_OF_SHIPMENT +
+            MARGIN_OF_SAFETY)
 
-            result['Order Weight'] = math.ceil(
-                SHIRT_WEIGHTS[size_text] +
-                BALANCE_OF_SHIPMENT +
-                MARGIN_OF_SAFETY)
+        address_fields = _address_fields(address_text)
+        result.update(address_fields)
 
-            address_city = state_and_zip_match.group(1).strip(',').split(', ')
-            result['City'] = address_city[-1]
-            address = address_city[:-1]
-
-            if len(address) == 1:
-                for unit_identifier in ['Apt', '#', 'Apartment', 'Unit']:
-                    partition_idx = address[0].find(unit_identifier)
-                    if partition_idx > -1:
-                        result['Street Line 1'] = \
-                            address[0][:partition_idx].strip()
-                        result['Street Line 2'] = \
-                            address[0][partition_idx:].strip()
-                        break
-                if result['Street Line 1'] is None:
-                    result['Street Line 1'] = address[0]
-            elif len(address) == 2:
-                result['Street Line 1'] = address[0].strip()
-                result['Street Line 2'] = address[1].strip()
-            else:
-                raise(Exception)
-
-        else:
-            # Don't try on non-US addresses for now; they are rare
-            # TODO parse common international addresses
-            warnings.warn(
-                f'Possible international address found: {address_text}')
-            result = None
     else:
         result = None
 
     return result
 
+def _address_fields(address_text):
+    fields = {}
+
+    if address_text[-2:] in COUNTRIES:
+        country = address_text[-2:]
+        fields['Country'] = country
+        remainder = address_text[:-2].strip().strip(',')
+    elif COUNTRIES[DEFAULT_COUNTRY]['postal_code_regex'].search(address_text):
+        country = DEFAULT_COUNTRY
+        fields['Country'] = country
+        remainder = address_text.strip().strip(',')
+    else:
+        raise Exception(f'Parse error on "{address_text}".')
+
+    for field in COUNTRIES[country]['fields'][::-1]:
+        # Fill out the country's address schema parsing the address text from
+        # the right
+        if field == 'Zip/Postal Code':
+            # Advance to last postal code match (sometimes things like
+            # five-digit street addresses will break the naive regex match)
+            regex = COUNTRIES[country]['postal_code_regex']
+            for postcode_match in re.finditer(regex, remainder):
+                pass
+
+            postcode_loc = postcode_match.span()
+            fields[field] = postcode_match.group().strip()
+
+            assert remainder[postcode_loc[1]:].strip().strip(',') == ''
+            remainder = remainder[:postcode_loc[0]].strip().strip(',')
+
+        elif field == 'State/Province':
+            # Assumes all state/province codes are all-caps abbreviations
+            regex = re.compile(r'[A-Z]+')
+            for prov_match in re.finditer(regex, remainder):
+                pass
+
+            prov_loc = prov_match.span()
+            fields[field] = prov_match.group().strip()
+
+            assert remainder[prov_loc[1]:].strip().strip(',') == ''
+            remainder = remainder[:prov_loc[0]].strip().strip(',')
+
+        else:
+            loc = remainder.rfind(',')
+            fields[field] = remainder[loc + 1:].strip()
+            remainder = remainder[:loc].strip().strip(',')
+
+    street_address_parts = remainder.split(',')
+    if len(street_address_parts) == 1:
+        for unit_marker in ['Apt', 'Apartment', 'Unit', '#']:
+            loc = remainder.find(unit_marker)
+            if loc > -1:
+                fields['Street Line 1'] = remainder[:loc].strip()
+                fields['Street Line 2'] = remainder[loc:].strip()
+                break
+
+        if 'Street Line 1' not in fields:
+            fields['Street Line 1'] = remainder.strip().strip(',')
+
+    elif len(street_address_parts) == 2:
+        fields['Street Line 1'] = street_address_parts[0].strip()
+        fields['Street Line 2'] = street_address_parts[1].strip()
+    else:
+        raise Exception
+
+    return fields
 
 wb = openpyxl.load_workbook(filename=argv[1], data_only=True)
 results = []
@@ -128,14 +170,14 @@ ir = wb['outgoing'].iter_rows()
 next(ir)  # Header row
 for row in ir:
     size = row[1].value
-    if '2XL' in size or '3XL' in size:
-        warnings.warn('Shirts bigger than XL may need a bigger box.')
 
     name = row[2].value
     address = row[3].value
     shipped = row[4].value
 
     if shipped != 'Y':
+        if re.compile(r'[0-9]XL').search(size):
+            warnings.warn('Shirts bigger than XL may need a bigger box.')
         fields = shippo_details(size, name, address)
 
         if fields is not None:
