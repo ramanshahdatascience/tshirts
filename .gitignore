@@ -1,9 +1,11 @@
 # Excel caches
 ~$*.xlsx
 
-# The unredacted inventory and shipping manifests for live use
+# Operational artifacts from real-world use: unredacted inventory, shipping
+# manifests, scratch work like recipient imports
 tshirt_inventory.xlsx
 *manifest.csv
+scratch/
 
 # Vim swap
 .*.sw*
