@@ -4,7 +4,7 @@
 # Operational artifacts from real-world use: unredacted inventory, shipping
 # manifests, scratch work like recipient imports
 tshirt_inventory.xlsx
-*manifest.csv
+*labels.csv
 scratch/
 
 # Vim swap
