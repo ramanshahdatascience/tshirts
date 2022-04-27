@@ -2,7 +2,7 @@
 
 '''Usage:
 
-./inventory_to_shippo_manifest.py tshirt_inventory.xlsx manifest.csv'''
+./inventory_to_shippo_labels.py tshirt_inventory.xlsx labels.csv'''
 
 
 import copy
