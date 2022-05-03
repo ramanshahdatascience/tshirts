@@ -179,7 +179,9 @@ for row in ir:
     address = row[3].value
     shipped = row[4].value
 
-    if shipped != 'Y':
+    # Omit recipients that are unconfirmed (and thus have no shipping address
+    # and size)
+    if all(i is not None for i in (size, name, address)) and shipped != 'Y':
         if re.compile(r'[0-9]XL').search(size):
             warnings.warn('Shirts bigger than XL may need a bigger box.')
         fields = shippo_details(size, name, address)
