@@ -50,7 +50,9 @@ COUNTRIES = {
            'postal_code_regex': re.compile(r'[0-9]{5}(-[0-9]{4})?')},
     'GB': {'fields': ['City', 'Zip/Postal Code'],
            'postal_code_regex': re.compile(
-               r'[A-Z][A-Z0-9]{1,3} [0-9][A-Z]{2}')}}
+               r'[A-Z][A-Z0-9]{1,3} [0-9][A-Z]{2}')},
+    'IE': {'fields': ['City', 'State/Province', 'Zip/Postal Code'],
+           'postal_code_regex': re.compile(r'[A-Z][0-9][0-9W] [A-Z0-9]{4}')}}
 
 SHIPPO_FIELDS = {'Order Number': None,
                  'Order Date': None,
@@ -128,8 +130,9 @@ def _address_fields(address_text):
             remainder = remainder[:postcode_loc[0]].strip().strip(',')
 
         elif field == 'State/Province':
-            # Assumes all state/province codes are all-caps abbreviations
-            regex = re.compile(r'[A-Z]+')
+            # Assumes all state/province codes are all-caps abbreviations, or
+            # Irish counties
+            regex = re.compile(r'[A-Z][A-Z]+|County [A-Za-z]*|Co\. [A-Za-z]*')
             for prov_match in re.finditer(regex, remainder):
                 pass
 
