@@ -1,5 +1,6 @@
-# Excel caches
+# Caches
 ~$*.xlsx
+__pycache__/
 
 # Operational artifacts from real-world use: unredacted inventory, shipping
 # manifests, scratch work like recipient imports

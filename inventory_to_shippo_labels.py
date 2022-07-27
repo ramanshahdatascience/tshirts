@@ -14,6 +14,8 @@ import warnings
 
 import openpyxl
 
+import address_parser
+
 # Measured masses of t-shirts by size, in oz
 SHIRT_WEIGHTS = {'MXS': 3.45 / 1,
                  'MS': 11.45 / 3,
@@ -43,16 +45,6 @@ BALANCE_OF_SHIPMENT = \
 # too much margin jacks typical MM orders, which weigh close to 8 oz, from 8 oz
 # to 9 oz, which incurs a big price increase).
 MARGIN_OF_SAFETY = 0.15
-
-DEFAULT_COUNTRY = 'US'
-COUNTRIES = {
-    'US': {'fields': ['City', 'State/Province', 'Zip/Postal Code'],
-           'postal_code_regex': re.compile(r'[0-9]{5}(-[0-9]{4})?')},
-    'GB': {'fields': ['City', 'Zip/Postal Code'],
-           'postal_code_regex': re.compile(
-               r'[A-Z][A-Z0-9]{1,3} [0-9][A-Z]{2}')},
-    'IE': {'fields': ['City', 'State/Province', 'Zip/Postal Code'],
-           'postal_code_regex': re.compile(r'[A-Z][0-9][0-9W] [A-Z0-9]{4}')}}
 
 SHIPPO_FIELDS = {'Order Number': None,
                  'Order Date': None,
@@ -84,88 +76,20 @@ def shippo_details(size_text, name_text, address_text):
     result = copy.deepcopy(SHIPPO_FIELDS)
 
     # Real addresses and not notes to hand-deliver have parts, thus commas
-    if address_text.find(', ') > -1:
+    address_fields = address_parser.parse(address_text)
+
+    if address_fields is None:
+        # Note to self
+        result = None
+    else:
         result['Recipient Name'] = name_text
         result['Order Weight'] = math.ceil(
             SHIRT_WEIGHTS[size_text] +
             BALANCE_OF_SHIPMENT +
             MARGIN_OF_SAFETY)
-
-        address_fields = _address_fields(address_text)
         result.update(address_fields)
 
-    else:
-        result = None
-
     return result
-
-def _address_fields(address_text):
-    fields = {}
-
-    if address_text[-2:] in COUNTRIES:
-        country = address_text[-2:]
-        fields['Country'] = country
-        remainder = address_text[:-2].strip().strip(',')
-    elif COUNTRIES[DEFAULT_COUNTRY]['postal_code_regex'].search(address_text):
-        country = DEFAULT_COUNTRY
-        fields['Country'] = country
-        remainder = address_text.strip().strip(',')
-    else:
-        raise Exception(f'Parse error on "{address_text}".')
-
-    for field in COUNTRIES[country]['fields'][::-1]:
-        # Fill out the country's address schema parsing the address text from
-        # the right
-        if field == 'Zip/Postal Code':
-            # Advance to last postal code match (sometimes things like
-            # five-digit street addresses will break the naive regex match)
-            regex = COUNTRIES[country]['postal_code_regex']
-            for postcode_match in re.finditer(regex, remainder):
-                pass
-
-            postcode_loc = postcode_match.span()
-            fields[field] = postcode_match.group().strip()
-
-            assert remainder[postcode_loc[1]:].strip().strip(',') == ''
-            remainder = remainder[:postcode_loc[0]].strip().strip(',')
-
-        elif field == 'State/Province':
-            # Assumes all state/province codes are all-caps abbreviations, or
-            # Irish counties
-            regex = re.compile(r'[A-Z][A-Z]+|County [A-Za-z]*|Co\. [A-Za-z]*')
-            for prov_match in re.finditer(regex, remainder):
-                pass
-
-            prov_loc = prov_match.span()
-            fields[field] = prov_match.group().strip()
-
-            assert remainder[prov_loc[1]:].strip().strip(',') == ''
-            remainder = remainder[:prov_loc[0]].strip().strip(',')
-
-        else:
-            loc = remainder.rfind(',')
-            fields[field] = remainder[loc + 1:].strip()
-            remainder = remainder[:loc].strip().strip(',')
-
-    street_address_parts = remainder.split(',')
-    if len(street_address_parts) == 1:
-        for unit_marker in ['Apt', 'Apartment', 'Unit', '#']:
-            loc = remainder.find(unit_marker)
-            if loc > -1:
-                fields['Street Line 1'] = remainder[:loc].strip()
-                fields['Street Line 2'] = remainder[loc:].strip()
-                break
-
-        if 'Street Line 1' not in fields:
-            fields['Street Line 1'] = remainder.strip().strip(',')
-
-    elif len(street_address_parts) == 2:
-        fields['Street Line 1'] = street_address_parts[0].strip()
-        fields['Street Line 2'] = street_address_parts[1].strip()
-    else:
-        raise Exception
-
-    return fields
 
 wb = openpyxl.load_workbook(filename=argv[1], data_only=True)
 results = []
