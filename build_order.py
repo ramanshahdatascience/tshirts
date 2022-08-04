@@ -1,10 +1,11 @@
 #! /usr/bin/env python3
 
 
-from sys import argv
+import argparse
+import collections
+
 import numpy as np
 import openpyxl
-import collections
 
 ORDER_SIZE = 35
 PSEUDOCOUNT = 35
@@ -14,9 +15,18 @@ SIM_SIZE = 10_000
 # Initialize NumPy random number generator
 gen = np.random.default_rng(seed=42)
 
+parser = argparse.ArgumentParser(
+    description='Compute an optimal T-shirt order.')
+parser.add_argument('inventory_filename',
+    help='filename of Excel spreadsheet with inventory')
+parser.add_argument('-o', '--output',
+    choices=['screen', 'hypothesis', 'order'], default=['screen'],
+    help='where to write down the optimal order')
+args = parser.parse_args()
+
 # Grab counts of lifetime T-shirts received and lifetime T-shirts queued from
 # the inventory spreadsheet
-wb = openpyxl.load_workbook(filename=argv[1], data_only=True)
+wb = openpyxl.load_workbook(filename=args.inventory_filename, data_only=True)
 assert wb['inventory']['A2'].value == 'Lifetime received'
 assert wb['inventory']['A3'].value == 'Lifetime queued'
 
@@ -61,7 +71,8 @@ for gendered_size in gendered_sizes:
     else:
         prior_size_hist[gendered_size] = industry_knowledge[size]
 
-alpha_prior = np.array([1.0 + PSEUDOCOUNT * val for val in prior_size_hist.values()])
+alpha_prior = np.array([1.0 + PSEUDOCOUNT * val
+    for val in prior_size_hist.values()])
 
 prior_samples = gen.dirichlet(alpha_prior, size=SIM_SIZE)
 
@@ -146,8 +157,9 @@ if sum_error != 0:
 
 assert backorders_rounded.sum() == ORDER_SIZE
 
-print('Optimal order:')
-for i, gendered_size in enumerate(gendered_sizes):
-    print('{:4s}: {:d}'.format(gendered_size, backorders_rounded[i]))
-
-# TODO option to write the optimal order into the spreadsheet directly
+if args.output == 'screen':
+    print('Optimal order:')
+    for i, gendered_size in enumerate(gendered_sizes):
+        print('{:4s}: {:d}'.format(gendered_size, backorders_rounded[i]))
+else:
+    raise NotImplementedError  # TODO
