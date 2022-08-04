@@ -20,7 +20,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument('inventory_filename',
     help='filename of Excel spreadsheet with inventory')
 parser.add_argument('-o', '--output',
-    choices=['screen', 'hypothesis', 'order'], default=['screen'],
+    choices=['console', 'hypothetical', 'final'], default='console',
     help='where to write down the optimal order')
 args = parser.parse_args()
 
@@ -40,8 +40,9 @@ for column in wb['inventory'].iter_cols():
     if gendered_size is not None and gendered_size != 'totals':
         lifetime_received[gendered_size] = column[1].value
         lifetime_queued[gendered_size] = column[2].value
-        logical_inventory[gendered_size] = column[1].value - column[2].value
+        logical_inventory[gendered_size] = column[6].value
         gendered_sizes.append(gendered_size)
+wb.close()
 
 # We define a weakly informative Dirichlet prior from industry knowledge:
 industry_knowledge = {'XS': 0.01,
@@ -157,9 +158,18 @@ if sum_error != 0:
 
 assert backorders_rounded.sum() == ORDER_SIZE
 
-if args.output == 'screen':
+if args.output == 'console':
     print('Optimal order:')
     for i, gendered_size in enumerate(gendered_sizes):
         print('{:4s}: {:d}'.format(gendered_size, backorders_rounded[i]))
+elif args.output == 'hypothetical':
+    wb = openpyxl.load_workbook(filename=args.inventory_filename)
+    assert wb['inventory']['A17'].value == 'Hypothetical order'
+    for column in wb['inventory'].iter_cols():
+        gendered_size = column[0].value
+        if gendered_size is not None and gendered_size != 'totals':
+            i = gendered_sizes.index(gendered_size)
+            column[16].value = backorders_rounded[i]
+    wb.save(args.inventory_filename)
 else:
     raise NotImplementedError  # TODO
