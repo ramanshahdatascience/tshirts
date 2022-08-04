@@ -23,6 +23,7 @@ assert wb['inventory']['A3'].value == 'Lifetime queued'
 lifetime_received = collections.OrderedDict()
 lifetime_queued = collections.OrderedDict()
 logical_inventory = collections.OrderedDict()  # Negatives denote backorders
+gendered_sizes = []
 
 for column in wb['inventory'].iter_cols():
     gendered_size = column[0].value
@@ -30,6 +31,7 @@ for column in wb['inventory'].iter_cols():
         lifetime_received[gendered_size] = column[1].value
         lifetime_queued[gendered_size] = column[2].value
         logical_inventory[gendered_size] = column[1].value - column[2].value
+        gendered_sizes.append(gendered_size)
 
 # We define a weakly informative Dirichlet prior from industry knowledge:
 industry_knowledge = {'XS': 0.01,
@@ -51,7 +53,7 @@ industry_knowledge = {'XS': 0.01,
 # Doing the first thing, which makes the prior histogram 51.5% men and 48.5%
 # women:
 prior_size_hist = collections.OrderedDict()
-for gendered_size in lifetime_received.keys():
+for gendered_size in gendered_sizes:
     size = gendered_size[1:]
     if f'M{size}' in lifetime_received and \
             f'W{size}' in lifetime_received:
@@ -123,25 +125,29 @@ backorders_divided = backorders / SIM_SIZE
 backorders_rounded = np.rint(backorders_divided).astype('int')
 
 # Sometimes rounding errors pile up, and we want exactly ORDER_SIZE shirts in
-# the order. A couple heuristics: If we're one over, take a shirt off the size
-# with the highest inventory after the order. If we're one under, add a shirt
-# to the size with the lowest. TODO it would be even more correct and fancy to
-# do some bona fide integer programming to maximize time to first backorder in
-# the neighborhood of the rounded solution, correctly rounded or not.
-rounding_error = backorders_rounded.sum() - ORDER_SIZE
-if rounding_error != 0:
-    proposed_inventory = inv_arr + backorders_rounded
-    if rounding_error == 1:
-        backorders_rounded[proposed_inventory.argmax()] -= 1
-    elif rounding_error == -1:
-        backorders_rounded[proposed_inventory.argmin()] += 1
-    else:
-        raise NotImplementedError
+# the order. When this happens, adjust the shirts with the biggest rounding
+# errors. In other words, add shirts to the sizes where backorders_divided had
+# the largest fractional parts below 0.5, or subtract shirts from the sizes
+# where backorders_divided had the smallest fractional parts above 0.5.
+sum_error = backorders_rounded.sum() - ORDER_SIZE
+if sum_error != 0:
+    rounding_errors = backorders_divided - backorders_rounded
+    adjustment_indices = np.argsort(rounding_errors)
+    if sum_error > 0:
+        for i in range(sum_error):
+            # Round down the quantities that had been rounded up the most
+            idx_to_decrement = adjustment_indices[i]
+            backorders_rounded[idx_to_decrement] -= 1
+    elif sum_error < 0:
+        for i in range(-1 * sum_error):
+            # Round down the quantities that had been rounded up the most
+            idx_to_increment = np.flip(adjustment_indices)[i]
+            backorders_rounded[idx_to_increment] += 1
 
 assert backorders_rounded.sum() == ORDER_SIZE
 
 print('Optimal order:')
-for i, gendered_size in enumerate(lifetime_received):
+for i, gendered_size in enumerate(gendered_sizes):
     print('{:4s}: {:d}'.format(gendered_size, backorders_rounded[i]))
 
 # TODO option to write the optimal order into the spreadsheet directly
