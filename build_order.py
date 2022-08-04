@@ -3,6 +3,7 @@
 
 import argparse
 import collections
+import datetime
 
 import numpy as np
 import openpyxl
@@ -36,12 +37,12 @@ logical_inventory = collections.OrderedDict()  # Negatives denote backorders
 gendered_sizes = []
 
 for column in wb['inventory'].iter_cols():
-    gendered_size = column[0].value
-    if gendered_size is not None and gendered_size != 'totals':
-        lifetime_received[gendered_size] = column[1].value
-        lifetime_queued[gendered_size] = column[2].value
-        logical_inventory[gendered_size] = column[6].value
-        gendered_sizes.append(gendered_size)
+    header_val = column[0].value
+    if header_val is not None and header_val != 'totals':
+        lifetime_received[header_val] = column[1].value
+        lifetime_queued[header_val] = column[2].value
+        logical_inventory[header_val] = column[6].value
+        gendered_sizes.append(header_val)
 wb.close()
 
 # We define a weakly informative Dirichlet prior from industry knowledge:
@@ -158,18 +159,42 @@ if sum_error != 0:
 
 assert backorders_rounded.sum() == ORDER_SIZE
 
+# Output to console or to the inventory workbook itself, either as a
+# hypothetical order at the bottom of the inventory sheet (to think about) or
+# as a new line in the incoming sheet (as part of sending out a new order)
 if args.output == 'console':
     print('Optimal order:')
     for i, gendered_size in enumerate(gendered_sizes):
         print('{:4s}: {:d}'.format(gendered_size, backorders_rounded[i]))
 elif args.output == 'hypothetical':
+    # With formulas, so we can save the formulas
     wb = openpyxl.load_workbook(filename=args.inventory_filename)
     assert wb['inventory']['A17'].value == 'Hypothetical order'
     for column in wb['inventory'].iter_cols():
-        gendered_size = column[0].value
-        if gendered_size is not None and gendered_size != 'totals':
-            i = gendered_sizes.index(gendered_size)
+        header_val = column[0].value
+        if header_val is not None and header_val != 'totals':
+            i = gendered_sizes.index(header_val)
             column[16].value = backorders_rounded[i]
     wb.save(args.inventory_filename)
-else:
-    raise NotImplementedError  # TODO
+elif args.output == 'final':
+    # With formulas, so we can save the formulas
+    wb = openpyxl.load_workbook(filename=args.inventory_filename)
+    ws = wb['incoming']
+    row_to_write = ws.max_row + 1
+
+    # Today's date for the reorder line
+    assert ws.cell(row=1, column=1).value == 'date'
+    new_date_cell = ws.cell(row=row_to_write, column=1)
+    new_date_cell.value = datetime.date.today()
+    new_date_cell.number_format = 'm/d/yy'
+
+    # Order quantities
+    for j in range(1, ws.max_column):
+        col_to_write = j + 1
+        new_qty_cell = ws.cell(row=row_to_write, column=col_to_write)
+        assert new_qty_cell.value is None
+        i = gendered_sizes.index(ws.cell(row=1, column=col_to_write).value)
+        ws.cell(row=row_to_write, column=col_to_write).value = \
+                backorders_rounded[i]
+
+    wb.save(args.inventory_filename)
