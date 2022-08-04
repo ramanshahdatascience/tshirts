@@ -140,7 +140,7 @@ if sum_error != 0:
             backorders_rounded[idx_to_decrement] -= 1
     elif sum_error < 0:
         for i in range(-1 * sum_error):
-            # Round down the quantities that had been rounded up the most
+            # Round up the quantities that had been rounded down the most
             idx_to_increment = np.flip(adjustment_indices)[i]
             backorders_rounded[idx_to_increment] += 1
 
