@@ -5,7 +5,7 @@ promotional t-shirts I send out as gifts as part of my marketing.
 
 Key assets:
 
-- `tshirt_inventory.xslx` (included as `tshirt_inventory_redacted.xlsx`): a
+- `tshirt_inventory.xlsx` (included as `tshirt_inventory_redacted.xlsx`): a
   spreadsheet to capture and organize the flow of individual shirts going out,
   boxes of bulk shirts coming in from the screen printing shop, and tabulations
   of these to track when I'm running out of certain sizes.
