@@ -34,6 +34,7 @@ Key assets:
 ./build_order.py tshirt_inventory.xlsx -m heuristic -o console
 
 # Optimal order with some brute-force refinement
+./build_order.py tshirt_inventory.xlsx -m optimized
 
 # Write optimal order to the "Hypothetical order" row in the "inventory" sheet
 ./build_order.py tshirt_inventory.xlsx -o hypothetical
