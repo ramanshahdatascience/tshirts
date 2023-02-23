@@ -3,11 +3,42 @@
 import numpy as np
 
 
+def worst_case(inv_arr, order_streams, order_size):
+    '''Conservatively target equal inventory for every size.
+
+    This guarantees a minimum level of performance in a worst-case scenario
+    where the future brings a uniform stream of unexpected (e.g., W2XL or MXS)
+    orders.
+    '''
+    order = np.zeros(inv_arr.shape, dtype='int')
+    curr_inv_arr = inv_arr.copy()
+
+    # Tiebreaker as we build the order
+    _, counts = np.unique(order_streams, return_counts=True)
+
+    for i in range(order_size):
+        most_popular_count = counts.min()  # Seed the tiebreaker below
+
+        scarcest_qty = np.min(curr_inv_arr)
+        for j in range(len(curr_inv_arr)):
+            if curr_inv_arr[j] == scarcest_qty:
+                if counts[j] >= most_popular_count:
+                    size_to_order = j
+                    most_popular_count = counts[j]
+
+        order[size_to_order] += 1
+        curr_inv_arr[size_to_order] += 1
+
+    return order
+
+
 def heuristic(inv_arr, order_streams, order_size):
-    # To build the order with maximum expected time to next reorder, track the
-    # logical inventory from today assuming we never ordered more shirts, until
-    # we have exactly ORDER_SIZE backorders.
-    #
+    '''Use a heuristic to get a near-optimal order.
+
+    To build the order with maximum expected time to next reorder, track the
+    logical inventory from today assuming we never ordered more shirts, until
+    we have exactly ORDER_SIZE backorders.
+    '''
     backorders = np.zeros(inv_arr.shape)
     sim_size = order_streams.shape[0]
 

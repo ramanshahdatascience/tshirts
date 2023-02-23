@@ -23,7 +23,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument('inventory_filename',
     help='filename of Excel spreadsheet with inventory')
 parser.add_argument('-m', '--method',
-    choices=['heuristic'], default='heuristic',
+    choices=['heuristic', 'worst_case'], default='heuristic',
     help='how to compute the optimal order')
 parser.add_argument('-o', '--output',
     choices=['console', 'hypothetical', 'final'], default='console',
@@ -128,6 +128,8 @@ for i in range(order_streams.shape[0]):
 # logical inventory
 if args.method == 'heuristic':
     optimal_order = oo.heuristic(inv_arr, order_streams, ORDER_SIZE)
+elif args.method == 'worst_case':
+    optimal_order = oo.worst_case(inv_arr, order_streams, ORDER_SIZE)
 
 # Output to console or to the inventory workbook itself, either as a
 # hypothetical order at the bottom of the inventory sheet (to think about) or
