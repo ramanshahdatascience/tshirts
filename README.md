@@ -1,4 +1,4 @@
-# A t-shirt reorder: a case study in optimal inventory management
+# The Bayesian t-shirts: a taste of optimal inventory
 
 This repo contains the homemade inventory system I use to manage the flow of
 promotional t-shirts I send out as gifts as part of my marketing.
@@ -29,9 +29,11 @@ Key assets:
 # Create a CSV suitable for import into Shippo
 ./inventory_to_shippo_labels.py tshirt_inventory.xlsx xxxx-yy-zz-labels.csv
 
-# Optimal order to console
+# Optimal order to console using a fast heuristic
 ./build_order.py tshirt_inventory.xlsx
-./build_order.py tshirt_inventory.xlsx -o console
+./build_order.py tshirt_inventory.xlsx -m heuristic -o console
+
+# Optimal order with some brute-force refinement
 
 # Write optimal order to the "Hypothetical order" row in the "inventory" sheet
 ./build_order.py tshirt_inventory.xlsx -o hypothetical
@@ -40,11 +42,11 @@ Key assets:
 ./build_order.py tshirt_inventory.xlsx -o final
 ```
 
-As of writing, the commands that write the optimal order data to the
-spreadsheet are fiddly. One must **save the workbook in Excel, then close the
-workbook** to avoid the program crashing.
+**Note:** As of writing, the `openpyxl` calls that write the optimal order data
+to the spreadsheet are fiddly. To avoid errors, one must **save the workbook in
+Excel, then close the workbook** before writing to it with this script.
 
-## Prior
+## Prior/industry knowledge
 
 According to [this blog post by a t-shirt
 wholesaler](https://www.theadairgroup.com/blog/2020/06/01/shirt-order-size-distribution-what-sizes-to-order-for-t-shirts/),
