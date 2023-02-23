@@ -103,8 +103,6 @@ prior_samples = gen.dirichlet(alpha_prior, size=SIM_SIZE)
 
 # Construct posterior from lifetime queued
 counts = np.array(list(lifetime_queued.values()))
-print(counts)
-print(alpha_prior)
 alpha_posterior = alpha_prior + counts
 
 # Now sample distributions from the posterior:
