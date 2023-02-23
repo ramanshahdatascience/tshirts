@@ -13,15 +13,15 @@ Key assets:
   into a CSV file understood by [Shippo](https://goshippo.com), which draws
   upon a crib sheet to turn t-shirt sizes into order weights for the postage.
 - `address_parser.py`: a hand-rolled international mailing address parser, used
-  by `inventory_to_shippo_labels.csv`. It only has parsing rules for the few
+  by `inventory_to_shippo_labels.py`. It only has parsing rules for the few
   countries I've sent t-shirts to - definitely not comprehensive for public
   use.
 - `build_order.py`: the interesting thing from a data scientist's point of
-  view: a script that uses Bayesian inference (soon, multilevel models) and
-  discrete optimization (soon, in the nontrivial sense) to build an optimal
-  re-order for a box of shirts. In other words, it answers, "if I have this
-  inventory on hand, and that order history, how many of each size should I
-  buy?"
+  view: a script that uses Bayesian inference (closed-form Dirichlet posterior,
+  so far) and discrete optimization (brute-force refinement, so far) to build
+  an optimal re-order for a box of shirts. In other words, it answers, "if I
+  have this inventory on hand, and that order history, how many of each size
+  should I buy?"
 
 ## Usage
 
