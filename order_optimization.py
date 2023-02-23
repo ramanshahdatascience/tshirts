@@ -32,6 +32,38 @@ def worst_case(inv_arr, order_streams, order_size):
     return order
 
 
+def industry(inv_arr, prior_size_hist, order_size):
+    '''Build order to attempt to match industry expectations.
+
+    Policy: Ensure we end up with at least one of every size. But beyond that,
+    attempt to match the size distribution quoted in the industry blog.
+    '''
+    order = np.zeros(inv_arr.shape, dtype='int')
+    curr_inv_arr = inv_arr.copy()
+    industry_dist = np.array(list(prior_size_hist.values()))
+
+    for i in range(order_size):
+        scarcest_qty = np.min(curr_inv_arr)
+
+        if scarcest_qty < 1:
+            # First ensure we end up with at least one of every size, after
+            # filling backorders
+            size_to_order = np.argmin(curr_inv_arr)
+            order[size_to_order] += 1
+            curr_inv_arr[size_to_order] += 1
+        else:
+            # Add a shirt wherever we're farthest below the industry
+            # distribution
+            assert np.min(curr_inv_arr) >= 1
+            dist_diff = curr_inv_arr / curr_inv_arr.sum() - industry_dist
+
+            size_to_order = np.argmin(dist_diff)
+            order[size_to_order] += 1
+            curr_inv_arr[size_to_order] += 1
+
+    return order
+
+
 def heuristic(inv_arr, order_streams, order_size):
     '''Use a heuristic to get a near-optimal order.
 
