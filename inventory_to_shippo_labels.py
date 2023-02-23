@@ -91,6 +91,10 @@ def shippo_details(size_text, name_text, address_text):
 
     return result
 
+# openpyxl does not support data validation, which does not affect the work
+# here
+warnings.simplefilter('ignore', UserWarning)
+
 wb = openpyxl.load_workbook(filename=argv[1], data_only=True)
 results = []
 assert wb['outgoing']['C1'].value == 'name'

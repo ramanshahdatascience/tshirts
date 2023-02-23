@@ -4,6 +4,7 @@
 import argparse
 import collections
 import datetime
+import warnings
 
 import numpy as np
 import openpyxl
@@ -14,6 +15,10 @@ ORDER_SIZE = 35
 PSEUDOCOUNT = 35
 
 SIM_SIZE = 10_000
+
+# openpyxl does not support data validation, which does not affect the work
+# here
+warnings.simplefilter('ignore', UserWarning)
 
 # Initialize NumPy random number generator
 gen = np.random.default_rng(seed=42)
