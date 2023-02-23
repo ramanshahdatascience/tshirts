@@ -8,6 +8,8 @@ import datetime
 import numpy as np
 import openpyxl
 
+import order_optimization as oo
+
 ORDER_SIZE = 35
 PSEUDOCOUNT = 35
 
@@ -20,6 +22,9 @@ parser = argparse.ArgumentParser(
     description='Compute an optimal T-shirt order.')
 parser.add_argument('inventory_filename',
     help='filename of Excel spreadsheet with inventory')
+parser.add_argument('-m', '--method',
+    choices=['heuristic'], default='heuristic',
+    help='how to compute the optimal order')
 parser.add_argument('-o', '--output',
     choices=['console', 'hypothetical', 'final'], default='console',
     help='where to write down the optimal order')
@@ -98,6 +103,8 @@ prior_samples = gen.dirichlet(alpha_prior, size=SIM_SIZE)
 
 # Construct posterior from lifetime queued
 counts = np.array(list(lifetime_queued.values()))
+print(counts)
+print(alpha_prior)
 alpha_posterior = alpha_prior + counts
 
 # Now sample distributions from the posterior:
@@ -109,55 +116,20 @@ posterior_samples = gen.dirichlet(alpha_posterior, size=SIM_SIZE)
 # T-shirt already in stock and every T-shirt in the order we're planning here,
 # getting to a completely empty inventory before the following re-order).
 inv_arr = np.array(list(logical_inventory.values()))
-backorders = np.zeros(inv_arr.shape)
-n = sum(inv_arr) + ORDER_SIZE
 
-# To build the order with maximum expected time to next reorder, simulate
-# future orders, bookkeeping the logical inventory from today assuming we never
-# ordered more shirts, until we have exactly ORDER_SIZE backorders.
-#
-# TODO While runtime is just a few seconds for SIM_SIZE=1e4, this is
-# inefficient.  Cleverly vectorize?
-for dist in posterior_samples:
-    sim_queue = gen.choice(inv_arr.shape[0], size=n, p=dist)
-    curr_inv_arr = inv_arr.copy()
-    i = 0
-    while curr_inv_arr[curr_inv_arr < 0].sum() > -1 * ORDER_SIZE:
-        curr_inv_arr[sim_queue[i]] -= 1
-        i += 1
+# Build the library of order streams.
+stream_length = sum(inv_arr) + ORDER_SIZE
+order_streams = np.zeros((posterior_samples.shape[0], stream_length),
+        dtype='int')
+for i in range(order_streams.shape[0]):
+    order_streams[i, :] = gen.choice(inv_arr.shape[0],
+            size=stream_length,
+            p=posterior_samples[i])
 
-    # Select the sizes with negative logical inventory after this simulation of
-    # shirts sent out, then accumulate them in the backorders array.
-    curr_neg_inv = curr_inv_arr.copy()
-    curr_neg_inv[curr_neg_inv > 0] = 0
-    backorders += -1 * curr_neg_inv
-
-assert backorders.sum() == SIM_SIZE * ORDER_SIZE
-
-backorders_divided = backorders / SIM_SIZE
-backorders_rounded = np.rint(backorders_divided).astype('int')
-
-# Sometimes rounding errors pile up, and we want exactly ORDER_SIZE shirts in
-# the order. When this happens, adjust the shirts with the biggest rounding
-# errors. In other words, add shirts to the sizes where backorders_divided had
-# the largest fractional parts below 0.5, or subtract shirts from the sizes
-# where backorders_divided had the smallest fractional parts above 0.5.
-sum_error = backorders_rounded.sum() - ORDER_SIZE
-if sum_error != 0:
-    rounding_errors = backorders_divided - backorders_rounded
-    adjustment_indices = np.argsort(rounding_errors)
-    if sum_error > 0:
-        for i in range(sum_error):
-            # Round down the quantities that had been rounded up the most
-            idx_to_decrement = adjustment_indices[i]
-            backorders_rounded[idx_to_decrement] -= 1
-    elif sum_error < 0:
-        for i in range(-1 * sum_error):
-            # Round up the quantities that had been rounded down the most
-            idx_to_increment = np.flip(adjustment_indices)[i]
-            backorders_rounded[idx_to_increment] += 1
-
-assert backorders_rounded.sum() == ORDER_SIZE
+# Compute optimal order given SIM_SIZE streams of future orders and the current
+# logical inventory
+if args.method == 'heuristic':
+    optimal_order = oo.heuristic(inv_arr, order_streams, ORDER_SIZE)
 
 # Output to console or to the inventory workbook itself, either as a
 # hypothetical order at the bottom of the inventory sheet (to think about) or
@@ -165,7 +137,7 @@ assert backorders_rounded.sum() == ORDER_SIZE
 if args.output == 'console':
     print('Optimal order:')
     for i, gendered_size in enumerate(gendered_sizes):
-        print('{:4s}: {:d}'.format(gendered_size, backorders_rounded[i]))
+        print('{:4s}: {:d}'.format(gendered_size, optimal_order[i]))
 elif args.output == 'hypothetical':
     # With formulas, so we can save the formulas
     wb = openpyxl.load_workbook(filename=args.inventory_filename)
@@ -174,7 +146,7 @@ elif args.output == 'hypothetical':
         header_val = column[0].value
         if header_val is not None and header_val != 'totals':
             i = gendered_sizes.index(header_val)
-            column[16].value = backorders_rounded[i]
+            column[16].value = optimal_order[i]
     wb.save(args.inventory_filename)
 elif args.output == 'final':
     # With formulas, so we can save the formulas
@@ -195,6 +167,6 @@ elif args.output == 'final':
         assert new_qty_cell.value is None
         i = gendered_sizes.index(ws.cell(row=1, column=col_to_write).value)
         ws.cell(row=row_to_write, column=col_to_write).value = \
-                backorders_rounded[i]
+                optimal_order[i]
 
     wb.save(args.inventory_filename)
