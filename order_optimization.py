@@ -1,6 +1,8 @@
 '''Order optimization functions.'''
 
+import copy
 import numpy as np
+import pandas as pd
 
 
 def worst_case(inv_arr, order_streams, order_size):
@@ -117,3 +119,74 @@ def heuristic(inv_arr, order_streams, order_size):
     assert backorders_rounded.sum() == order_size
 
     return backorders_rounded
+
+
+def optimized(inv_arr, order_streams, order_size, max_dist=2):
+    '''Do a small-scale brute-force search around the heuristic solution.'''
+
+    sizes=len(inv_arr)
+    heuristic_order = heuristic(inv_arr, order_streams, order_size)
+
+    # Every adjustment of the order can be decomposed into steps of moving a
+    # shirt from one size to another.
+    elem_adjustments = set()
+    for i in range(sizes):
+        for j in range(sizes):
+            if i != j:
+                adj = [0 for _ in range(sizes)]
+                adj[i] = 1
+                adj[j] = -1
+                elem_adjustments.add(tuple(adj))
+
+    if max_dist > 1:
+        curr_adjustments = copy.deepcopy(elem_adjustments)
+        for stage in range(1, max_dist):
+            new_adjustments = copy.deepcopy(curr_adjustments)
+            for ca in curr_adjustments:
+                for ea in elem_adjustments:
+                    new_adjustments.add(
+                            tuple(ca[i] + ea[i] for i in range(sizes)))
+            curr_adjustments = new_adjustments
+        adjustments = new_adjustments
+    else:
+        adjustments = elem_adjustments
+
+    # Ensure the starting point itself is in the mix
+    adjustments.add(tuple(0 for _ in range(sizes)))
+
+    # Trial orders: increment heuristic order by the adjustments and throw out
+    # any orders with negative quantities
+    trials_with_negatives = np.array(list(adjustments)) + heuristic_order
+    trial_orders = trials_with_negatives[np.all(trials_with_negatives >= 0, axis=1)]
+
+    # Accumulate the order streams to build a larger data structure, of
+    # the backorder after each order assuming we didn't order anything.
+    snapshots = np.zeros((sizes, order_streams.shape[0], order_streams.shape[1]),
+            dtype='int8')
+    snapshots[:, :, 0] = inv_arr[:, np.newaxis]
+
+    # TODO didn't seem to unduly hit runtime but I'm sure there's a better
+    # vectorized way. I couldn't figure out a correct one at the time of
+    # writing.
+    for t in range(1, order_streams.shape[1]):
+        snapshots[:, :, t] = snapshots[:, :, t - 1]
+        for j in range(order_streams.shape[0]):
+            snapshots[order_streams[j, t], j, t] -= 1
+
+    best_mean_reorder_time = 0
+    for order in trial_orders:
+        curr_snapshots = snapshots + order[:, np.newaxis, np.newaxis]
+        # TODO Bizarre to bring Pandas in just for this. It's a facile way to
+        # get the reorder time for each stream of orders
+        reorder_times = pd.DataFrame(
+                np.argwhere(curr_snapshots == -1))\
+            .groupby(1)[2]\
+            .min()\
+            .values
+        mean_reorder_time = np.mean(reorder_times)
+
+        if mean_reorder_time > best_mean_reorder_time:
+            best_order = order
+            best_mean_reorder_time = mean_reorder_time
+
+    return best_order
