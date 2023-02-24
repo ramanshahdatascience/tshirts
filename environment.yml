@@ -2,6 +2,7 @@ name: tshirts
 channels:
   - defaults
 dependencies:
+  - matplotlib=3.6.2
   - numpy=1.23.5
   - openpyxl=3.0.10
   - pandas=1.5.2
