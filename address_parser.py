@@ -23,7 +23,11 @@ COUNTRIES = {
                'Zip/Postal Code': re.compile(
                    r'[A-Z][0-9][0-9W] [A-Z0-9]{4}'),
                'State/Province': re.compile(
-                   r'County [A-Za-z]*|Co\. [A-Za-z]*')}}
+                   r'County [A-Za-z]*|Co\. [A-Za-z]*')}},
+    'PT': {'fields': ['Zip/Postal Code', 'City'],
+           'regexes': {
+               'Zip/Postal Code': re.compile(
+                   r'[0-9]{4}-[0-9]{3}')}}
     }
 
 def _filter_notes_to_self(address_text, fxn, default_country=DEFAULT_COUNTRY,
